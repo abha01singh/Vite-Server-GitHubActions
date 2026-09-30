@@ -1,29 +1,52 @@
-name: Test EC2 Connection and Deploy
+name: Deploy React dist to EC2
 
 on:
   push:
     branches:
-      - main
-  workflow_dispatch:
+      - main # Change to 'master' if your default branch is master
 
 jobs:
-  test-ssh:
-    runs-on: ubuntu-24.04
+  deploy:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
-      - name: Connect to EC2 and Run Test Commands
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: 22
-          script: |
-            echo "--- Connection Successful! ---"
-            echo "Current Hostname: $(hostname)"
-            echo "Logged in as user: $(whoami)"
-            docker --version
-            docker ps
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Application
+        run: npm run build
+
+      - name: Deploy to EC2
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+          TARGET_DIR: "~/app"
+        run: |
+          # Set up the SSH key inside the GitHub runner
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Accept EC2 host fingerprint automatically
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+
+          # Ensure target directory exists on EC2
+          ssh -i ~/.ssh/deploy_key $USER@$HOST "mkdir -p $TARGET_DIR"
+
+          # Sync dist folder contents and delete obsolete assets
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new" \
+            dist/ $USER@$HOST:$TARGET_DIR/
+
+          # Clean up key on runner
+          rm -f ~/.ssh/deploy_key
