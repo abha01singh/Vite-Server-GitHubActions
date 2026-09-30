@@ -1,0 +1,34 @@
+name: Test EC2 Connection and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows running the workflow manually with a button click
+
+jobs:
+  test-ssh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Connect to EC2 and Run Test Commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            echo "--- Connection Successful! ---"
+            echo "Current Hostname: $(hostname)"
+            echo "Logged in as user: $(whoami)"
+            echo "Current Directory: $(pwd)"
+            
+            # Check that Docker runs without sudo
+            docker --version
+            docker ps
+            
+            echo "--- EC2 is ready for deployment! ---"
