@@ -4,7 +4,7 @@ function App() {
 
   return (
     <>
-      <div>Application Deployed on Server AWS1</div>
+      <div>Application Deployed on Server AWS2</div>
     </>
   )
 }
